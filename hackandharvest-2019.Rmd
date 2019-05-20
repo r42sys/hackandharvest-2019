@@ -235,7 +235,7 @@ ggmap(karte) +
   labs(title='Wohnungen pro Gebäude (Stand 2016)') +
   theme_void() +
   theme(legend.position="bottom") + 
-  guides(fill=guide_legend(override.aes=list(alpha=1, size=4)))
+  guides(color=guide_legend(override.aes=list(alpha=1, size=4)))
 ```
 
 ```{r, fig.width=8, fig.height=10}
@@ -253,7 +253,7 @@ ggmap(karte) +
   labs(title='Wohnungen nach Baujahr (Stand 2016)') +
   theme_void() +
   theme(legend.position="bottom") + 
-  guides(fill=guide_legend(override.aes=list(alpha=1, size=4)))
+  guides(color=guide_legend(override.aes=list(alpha=1, size=4)))
 ```
 
 ## Einwohner
@@ -412,6 +412,7 @@ ggplot(df) +
   theme_bw() +
   theme(legend.position="bottom")
 ```
+
 ## Kinderbetreuung
 
 ```{r}
@@ -489,7 +490,8 @@ ggmap(karte2) +
   scale_fill_gradient2(midpoint=0, low="red", mid="white", high="green", space ="Lab" ) +
   labs(title='Bilanz der Radstationen') +
   theme_void() +
-  theme(legend.position='bottom', legend.box = "vertical")
+  theme(legend.position='bottom', legend.box = "vertical") + 
+  guides(color=guide_legend(override.aes=list(alpha=1, size=4)))
 ```
 
 ## Rechtliches
