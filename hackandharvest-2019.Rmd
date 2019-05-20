@@ -1,0 +1,497 @@
+---
+title: "hackandharvest 2019"
+subtitle: "Rad ab"
+author: 
+  name: Ralph Rogge
+date: 20. Mai 2019
+output:
+  html_document:
+    css: "hackandharvest-2019.css"
+    df_print: paged
+---
+
+Das Projekt 'Rad ab' war ein Teil des [Hack and Harvest](https://www.hackandharvest.farm) Hackathon 2019. Die Idee war die Untersuchung der Korrelation von Bevölkerungsstruktur und Nutzung der Fahrrad-Mietsysteme in Konstanz. Die Datenbasis bildete das Open Data Angebot [Offene Daten Konstanz](https://offenedaten-konstanz.de).
+
+```{r}
+rm(list=ls())
+```
+
+```{r, message=FALSE,warning=FALSE}
+library(dplyr)
+library(forcats)
+library(ggmap)
+library(ggplot2)
+library(osmdata)
+library(rgdal)
+library(tidyr)
+```
+
+## Radstationen
+
+```{r}
+rad.stationen <- read.csv("input/Fahrradmietsystem_konrad_TINK.csv", sep=';') %>%
+    rename(Name = Station_Name) %>%
+    rename(Nummer = Station_nummer) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad + TINK'='Konrad. TINK')) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad'='Konrad')) 
+
+rad.stationen
+```
+
+```{r, fig.width=8, fig.height=8, message=FALSE}
+karte <- get_map(getbb("Konstanz"), maptype="terrain") 
+ggmap(karte) +
+  geom_point(data=rad.stationen, aes(Longitude, Latitude, color=Typ), inherit.aes=FALSE, alpha=1, size=4) +
+  labs(title='Verteilung der Radstationen') +
+  theme_void() +
+  theme(legend.position="bottom") 
+```
+
+## Anmietungen/Rückgaben
+
+```{r}
+konrad.anmietungen <- read.csv("input/Anmietungen Fahrrad-Mietsystem konrad im Jahr 2018.csv", sep=';') %>%
+    rename(Name = Station_Name) %>%
+    rename(Nummer = Station.Nr.) %>%
+    select(-Jahr) %>%
+    rename('05.2018' = 'Mai') %>%
+    rename('06.2018' = 'Juni') %>%
+    rename('07.2018' = 'Juli') %>%
+    rename('08.2018' = 'August') %>%
+    rename('09.2018' = 'September') %>%
+    rename('10.2018' = 'Oktober') %>%
+    rename('11.2018' = 'November') %>%
+    rename('12.2018' = 'Dezember') %>%
+    gather(key='Monat', value='Anzahl', ends_with('2018')) %>%
+    mutate(Monat = as.Date(paste0('15.',Monat),'%d.%m.%Y')) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad + TINK'='konrad, TINK')) %>%
+    mutate(Vorgang = 'Anmietung')
+
+konrad.rückgabe <- read.csv("input/Rückgaben Fahrrad-Mietsystem konrad im Jahr 2018.csv", sep=';') %>%
+    rename(Name = Station_Name) %>%
+    rename(Nummer = Station.Nr.) %>%
+    select(-Jahr) %>%
+    rename('05.2018' = 'Mai') %>%
+    rename('06.2018' = 'Juni') %>%
+    rename('07.2018' = 'Juli') %>%
+    rename('08.2018' = 'August') %>%
+    rename('09.2018' = 'September') %>%
+    rename('10.2018' = 'Oktober') %>%
+    rename('11.2018' = 'November') %>%
+    rename('12.2018' = 'Dezember') %>%
+    gather(key='Monat', value='Anzahl', ends_with('2018')) %>%
+    mutate(Monat = as.Date(paste0('15.',Monat),'%d.%m.%Y')) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad + TINK'='konrad, TINK')) %>%
+    mutate(Vorgang = 'Rückgabe')
+
+konrad <- rbind(konrad.anmietungen, konrad.rückgabe) %>% filter(Typ == 'konrad' | Typ == 'konrad + TINK')
+head(konrad)
+```
+
+```{r, fig.width=8, fig.height=10}
+ggplot(konrad) +
+    facet_wrap(Name~., ncol=4) +
+    geom_bar(aes(x=Monat, y=Anzahl, fill=Vorgang), stat='Identity', position="dodge") +
+    labs(title='Anmietungen/Rückgabe Radstationen konrad (2018)') +
+    theme_bw() +
+    theme(legend.position="bottom")
+```
+
+```{r}
+tink.anmietungen <- read.csv("input/Anmietungen Fahrrad-Mietsystem TINK im Jahr 2018.csv", sep=';') %>%
+    rename(Name = Station_Name) %>%
+    rename(Nummer = Station_Nr.) %>%
+    select(-Jahr) %>%
+    rename('08.2018' = 'August') %>%
+    rename('09.2018' = 'September') %>%
+    rename('10.2018' = 'Oktober') %>%
+    rename('11.2018' = 'November') %>%
+    rename('12.2018' = 'Dezember') %>%
+    gather(key='Monat', value='Anzahl', ends_with('2018')) %>%
+    mutate(Monat = as.Date(paste0('15.',Monat),'%d.%m.%Y')) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad + TINK'='konrad, TINK')) %>%
+    mutate(Vorgang = 'Anmietung')
+
+tink.rückgabe <- read.csv("input/Rückgaben Fahrrad-Mietsystem TINK im Jahr 2018.csv", sep=';') %>%
+    rename(Name = Station_Name) %>%
+    rename(Nummer = Station.Nr.) %>%
+    select(-Jahr) %>%
+    rename('08.2018' = 'August') %>%
+    rename('09.2018' = 'September') %>%
+    rename('10.2018' = 'Oktober') %>%
+    rename('11.2018' = 'November') %>%
+    rename('12.2018' = 'Dezember') %>%
+    gather(key='Monat', value='Anzahl', ends_with('2018')) %>%
+    mutate(Monat = as.Date(paste0('15.',Monat),'%d.%m.%Y')) %>%
+    mutate(Typ = fct_recode(Typ, 'konrad + TINK'='konrad, TINK')) %>%
+    mutate(Vorgang = 'Rückgabe')
+
+tink <- rbind(tink.anmietungen, tink.rückgabe) %>% filter(Typ == 'TINK' | Typ == 'konrad + TINK')
+head(tink)
+```
+
+```{r, fig.width=8, fig.height=10}
+ggplot(tink) +
+    facet_wrap(Name~., ncol=4) +
+    geom_bar(aes(x=Monat, y=Anzahl, fill=Vorgang), stat='Identity', position='dodge') +
+    labs(title='Anmietungen/Rückgabe Radstationen TINK (2018)') +
+    theme_bw() +
+    theme(legend.position="bottom") 
+```
+
+## Stadtteile
+
+```{r}
+vororte <- c('Egg', 'Dettingen', 'Dingelsdorf', 'Litzelstetten', 'Wallhausen')
+```
+
+```{r}
+filename <- "input/Einwohner_nach_Stadtviertel 2010-2017.csv"
+stadt <- read.csv(filename, sep=";", na.strings=c('','-')) %>%
+
+  # Artefakte entfernen. Hurrga!
+  select(-AA, -AB) %>%
+
+  # Fehlende Daten werden herausgefiltert.
+  filter(complete.cases(.)) %>%
+
+  # Es lebe ASCII, UTF-8 und andere Unwägbarkeiten.  
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Fürstenberg' = c('Fuerstenberg'))) %>%
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Königsbau' = c('Koenigsbau'))) %>%
+  
+  # Einige Variablenamen etwas leiser stellen.
+  rename(Stadtteil = STADTTEIL) %>%
+  rename(Stadtviertel = STADTVIERTEL) %>%
+  
+  # Zusätzliches Merkmal: (Pseudo-) Verwaltungseinheit.
+  mutate(Verwaltungseinheit = as.factor(ifelse(Stadtteil %in% vororte, 'Vorort', 'Stadt'))) %>%
+
+  # Nur die Daten selektieren, die hier gebraucht werden.
+  select(Stadtteil, Stadtviertel, STT, Verwaltungseinheit) %>%
+  unique()
+
+head(stadt)
+```
+
+```{r}
+stadtteile <- stadt %>% select(Stadtteil, STT, Verwaltungseinheit) %>% unique()
+
+stadtteile
+```
+
+## Gebäude
+
+```{r}
+filename <- "input/Gebäude nach Baujahr 2016.csv"
+gebäude <- read.csv(filename, sep=";", na.strings=c('','-')) %>%
+
+  # Einige Variabel (IMHO) etwas aussagkräftiger machen.
+  rename(Baujahr = BAUJAHR_GEBAEUDE_GRUPPIERT) %>%
+  rename(Baublock = Baublock.6stellig) %>%
+  rename(Gauss_Krüger_X = KOORDINATE_X) %>%
+  rename(Gauss_Krüger_Y = KOORDINATE_Y) %>%
+  rename(Wohnungen = ANZAHL_WOHNUNG_GRUPPIERT) %>%
+
+  # Datensätze mit fehlenden DAaten werden herausgefiltert.
+  filter(complete.cases(.)) %>%
+  
+  # Dinge, die im aktuellen Kontext nicht gebraucht werden.
+  select(-AGS, -Anzahl_GEBAEUDE, -Gemeinde, -STADTVIERTEL, -Stand)
+
+# Die Information zum Stadtteil hinzufügen.
+gebäude <- merge(gebäude, stadtteile)
+
+# Labels für die Wohnungsklassifizierung umsortieren.
+gebäude$Baujahr = factor(gebäude$Baujahr,levels(gebäude$Baujahr)[c(9,1:8)])
+gebäude$Wohnungen = factor(gebäude$Wohnungen,levels(gebäude$Wohnungen)[c(1,3,4,5,2)])
+
+head(gebäude)
+```
+
+```{r}
+# Ein bisserl die Gauß-Krüger Koordinaten der Gebäude nach WGS84 transformieren.
+GK <- data.frame(cbind(x=gebäude$Gauss_Krüger_X, y=gebäude$Gauss_Krüger_Y))
+coordinates(GK) <- c('x', 'y')
+proj4string(GK) <- CRS("+proj=tmerc +lat_0=0 +lon_0=9 +k=1 +x_0=3500000 +y_0=0 +ellps=bessel +datum=potsdam +units=m +no_defs")
+df <- as.data.frame(spTransform(GK, CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")))
+gebäude$WGS84_X = df$x
+gebäude$WGS84_Y = df$y
+```
+
+```{r, fig.width=8, fig.height=10}
+ggplot(gebäude) +
+  geom_bar(aes(x=Wohnungen, fill=Stadtteil)) +
+  facet_wrap(Stadtteil~., ncol=3) +
+  coord_flip() + 
+  labs(x='Wohnungen im Gebäude', y='Anzahl', title='Wohnungen pro Gebäude (Stand 2016)') +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r, fig.width=8, fig.height=8 }
+size <- c(1:length(levels(gebäude$Wohnung)))[gebäude$Wohnung] + 1
+ggmap(karte) +
+  geom_point(data=gebäude, aes(WGS84_X, WGS84_Y, color=Wohnungen), inherit.aes=FALSE, alpha=.2, size=size, na.rm=T) +
+  labs(title='Wohnungen pro Gebäude (Stand 2016)') +
+  theme_void() +
+  theme(legend.position="bottom") + 
+  guides(fill=guide_legend(override.aes=list(alpha=1, size=4)))
+```
+
+```{r, fig.width=8, fig.height=10}
+ggplot(gebäude) +
+  geom_bar(aes(x=Baujahr, fill=Stadtteil)) +
+  facet_wrap(Stadtteil~., ncol=3) +
+  coord_flip() + 
+  labs(x='Baujahr des Gebäude', y='Anzahl', title='Wohnungen nach Baujahr (Stand 2016)') +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+```{r, fig.width=8, fig.height=8}
+ggmap(karte) +
+  geom_point(data=gebäude, aes(WGS84_X, WGS84_Y, color=Baujahr), inherit.aes =FALSE, alpha=.2, size=2, na.rm=T) +
+  labs(title='Wohnungen nach Baujahr (Stand 2016)') +
+  theme_void() +
+  theme(legend.position="bottom") + 
+  guides(fill=guide_legend(override.aes=list(alpha=1, size=4)))
+```
+
+## Einwohner
+
+```{r}
+filename <- "input/Einwohner_nach_Stadtviertel 2010-2017.csv"
+einwohner <- read.csv(filename, sep=";", na.strings=c('','-')) %>%
+    
+  # Artefakte entfernen. Hurrga!
+  select(-AA, -AB) %>%
+
+  # Fehlende Daten werden herausgefiltert.
+  filter(complete.cases(.)) %>%
+
+  # Es lebe ASCII, UTF-8 und andere Unwägbarkeiten.  
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Fürstenberg' = c('Fuerstenberg'))) %>%
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Königsbau' = c('Koenigsbau'))) %>%
+  
+  # Dinge, die im aktuellen Kontext nicht gebraucht werden.
+  select(-AGS, -Gemeinde, -STT) %>%
+
+  # Einige Variablenamen etwas leiser stellen.
+  rename(Stadtteil = STADTTEIL) %>%
+  rename(Stadtviertel = STADTVIERTEL) %>%
+  
+  # Zusätzliches Merkmal: (Pseudo-) Verwaltungseinheit.
+  mutate(Verwaltungseinheit = as.factor(ifelse(Stadtteil %in% vororte, 'Vorort', 'Stadt'))) %>%
+
+  # Besserere Variablename (IMHO) in diesem Kontext.
+  mutate(Stichtag = as.Date(Stand_Einwohner, "%d.%m.%Y")) %>%
+
+  # 
+  mutate(Frauen = EINW_HW_FRAUEN) %>%
+  mutate(Männer = EINW_HW_GESAMT - EINW_HW_FRAUEN) %>%
+  gather(key="Geschlecht", value="Anzahl", c(Frauen,Männer)) %>%
+  
+  # Dinge, die im aktuellen Kontext nicht gebraucht werden.
+  select(-starts_with('EINW_HW'), -Stand_Einwohner) %>%
+  
+  group_by(Stadtteil, Verwaltungseinheit, Stichtag, Geschlecht) %>%
+  summarize(Anzahl = sum(Anzahl))
+
+head(einwohner)
+```
+
+```{r, fig.width=8, fig.height=6 }
+ggplot(einwohner %>% filter(Verwaltungseinheit=='Stadt')) +
+  geom_point(aes(x=Stichtag,y=Anzahl,color=Stadtteil)) +
+  geom_smooth(aes(x=Stichtag,y=Anzahl,color=Stadtteil), method='lm') +
+  labs(x='Stichtag', y='Anzahl Einwohner', title='Einwohner nach Stadtteil (Stadt Konstanz)') +
+  facet_grid(~Geschlecht) + 
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r}
+einwohner %>% 
+  filter(Verwaltungseinheit=='Stadt') %>% 
+  filter(Stichtag==as.Date('31.12.2010','%d.%m.%Y')) %>% 
+  ungroup() %>% 
+  select(-Verwaltungseinheit)
+```
+
+```{r, fig.width=8 }
+ggplot(einwohner %>% filter(Verwaltungseinheit=='Vorort')) +
+  geom_point(aes(x=Stichtag,y=Anzahl,color=Stadtteil)) +
+  geom_smooth(aes(x=Stichtag,y=Anzahl,color=Stadtteil), method='lm') +
+  labs(x='Stichtag', y='Anzahl Einwohner', title='Einwohner nach Stadtteil (Vororte Konstanz)') +
+  facet_grid(~Geschlecht) + 
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r}
+einwohner %>% 
+  filter(Verwaltungseinheit=='Vorort') %>% 
+  filter(Stichtag==as.Date('31.12.2010','%d.%m.%Y')) %>% 
+  ungroup() %>% 
+  select(-Verwaltungseinheit)
+```
+
+## Altersstruktur 
+
+```{r}
+filename <- "input/Einwohner_nach_Stadtviertel 2010-2017.csv"
+einwohner <- read.csv(filename, sep=";", na.strings=c('','-')) %>%
+  
+  # Artefakte entfernen. Hurrga!
+  select(-AA, -AB) %>%
+
+  # Fehlende Daten werden herausgefiltert.
+  filter(complete.cases(.)) %>%
+
+  # Es lebe ASCII, UTF-8 und andere Unwägbarkeiten.  
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Fürstenberg' = c('Fuerstenberg'))) %>%
+  mutate(STADTTEIL = fct_collapse(STADTTEIL, 'Königsbau' = c('Koenigsbau'))) %>%
+  
+  # Einige Variablenamen etwas leiser stellen.
+  rename(Stadtteil = STADTTEIL) %>%
+  rename(Stadtviertel = STADTVIERTEL) %>%
+
+  # Zusätzliches Merkmal: (Pseudo-) Verwaltungseinheit.
+  mutate(Verwaltungseinheit = as.factor(ifelse(Stadtteil %in% vororte, 'Vorort', 'Stadt'))) %>%
+
+  # Besserere Variablename (IMHO) in diesem Kontext.
+  mutate(Stichtag = as.Date(Stand_Einwohner, "%d.%m.%Y")) %>%
+
+  # Unbenötigte Einwohnerdaten entfernen.
+  select(-EINW_HW_GESAMT, -EINW_HW_FRAUEN, -EINW_HW_DEUTSCH, -EINW_HW_AUSLAENDER) %>%
+  
+  # Altersklassen bilden.
+  gather(key="Altersklasse", value="Anzahl", starts_with("EINW_HW")) %>%
+  mutate(Altersklasse = factor(Altersklasse)) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, 'unter 18'='EINW_HW_unter18')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, '18 bis unter 30'='EINW_HW_18_bis_unter_30')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, '30 bis unter 40'='EINW_HW_30_bis_unter_40')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, '40 bis unter 50'='EINW_HW_40_bis_unter_50')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, '50 bis unter 60'='EINW_HW_50_bis_unter_60')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, 'über 60'='EINW_HW_60_und_älter')) %>%
+
+  group_by(Stadtteil, Verwaltungseinheit, Stichtag, Altersklasse) %>%
+  summarize(Anzahl = sum(Anzahl))
+  
+# Anordnung der Alterklassenbezeichnungen anordnen.
+einwohner$Altersklasse = factor(einwohner$Altersklasse,levels(einwohner$Altersklasse)[c(6,1:5)])
+
+head(einwohner)
+```
+
+```{r, fig.width=8, fig.height=8}
+df <- einwohner %>% 
+  ungroup() %>%
+  filter(Stichtag==as.Date('31.12.2017','%d.%m.%Y') | Stichtag==as.Date('31.12.2010','%d.%m.%Y')) %>%
+  filter(Verwaltungseinheit=='Stadt') %>%
+  mutate(Stichtag = as.factor(Stichtag))
+ggplot(df) + 
+  geom_bar(aes(x=Altersklasse, y=Anzahl, fill=Stichtag), stat = "identity", position='dodge') + 
+  facet_wrap(Stadtteil~., ncol=3) +
+  coord_flip() + 
+  labs(x='Altersklasse', y='Anzahl Einwohner', title='Einwohner nach Altersklasse (Konstanz Stadt)') +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r , fig.width=8, fig.height=6}
+df <- einwohner %>% 
+  ungroup() %>%
+  filter(Stichtag==as.Date('31.12.2017','%d.%m.%Y') | Stichtag==as.Date('31.12.2010','%d.%m.%Y')) %>%
+  filter(Verwaltungseinheit=='Vorort') %>%
+  mutate(Stichtag = as.factor(Stichtag))
+ggplot(df) + 
+  geom_bar(aes(x=Altersklasse, y=Anzahl, fill=Stichtag), stat = "identity", position='dodge') + 
+  facet_wrap(Stadtteil~., ncol=3) +
+  coord_flip() + 
+  labs(x='Altersklasse', y='Anzahl Einwohner', title='Einwohner nach Altersklasse (Konstanz Vororte)') +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+## Kinderbetreuung
+
+```{r}
+filename <- "input/Kinderbetreuung nach Stadtteile März 2017.csv"
+kita <- read.csv(filename, sep=";", na.strings=c('','-')) %>%
+
+  rename(Stadtteil = STADTTEIL) %>%
+  gather(key="Altersklasse", value="Plätze", starts_with("KITA")) %>%
+  mutate(Altersklasse = factor(Altersklasse)) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, 'unter 3'='KITA_unter3')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, '3 - 6 bzw. Schuleintritt'='KITA_3bis6')) %>%
+  mutate(Altersklasse = fct_recode(Altersklasse, 'Schulkinder'='KITA_SCHULKIND')) %>%
+
+  # Fehlende Daten werden herausgefiltert.
+  filter(complete.cases(.)) %>%
+  
+  # Dinge, die im aktuellen Kontext nicht gebraucht werden.
+  select(-AGS, -Gemeinde, -Stand, -starts_with("FLAECHE"))
+
+# Labels für die Wohnungsklassifizierung umsortieren.
+kita$Altersklasse = factor(kita$Altersklasse,levels(kita$Altersklasse)[c(3,1,2)])
+
+head(kita)
+```
+
+```{r, fig.width=8, fig.height=6}
+ggplot(kita) +
+  geom_bar(aes(x=Altersklasse, y=Plätze, fill=Stadtteil), stat="Identity") +
+  facet_wrap(Stadtteil~., ncol=3) +
+  coord_flip() + 
+  labs(x='Altersklasse', y='Anzahl Betreuungsplätze', title='Kinderbetreuungsplätze (März 2017)') +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+## Anmietung/Rückgabe-Bilanz der Radstationen
+
+```{r}
+konrad_und_tink <- rbind(konrad, tink) %>% 
+  group_by(Name, Nummer, Vorgang) %>% 
+  summarize(Anzahl=sum(Anzahl)) %>% 
+  spread(Vorgang, Anzahl) %>%
+  mutate(Bilanz = Rückgabe - Anmietung) %>%
+  mutate(Vorgänge = Rückgabe + Anmietung) %>%
+  arrange(Vorgänge) 
+konrad_und_tink
+```
+
+```{r}
+# Die Anzahl der Anmietungen und Rückgaben.
+sum(konrad_und_tink$Vorgänge)
+```
+
+```{r}
+# Es gibt mehr Anmietungen als Rückgaben!
+sum(konrad_und_tink$Anmietung) - sum(konrad_und_tink$Rückgabe)
+```
+
+```{r, message=FALSE }
+# Die Hintergrundkarte auf die Stadt (= ohne Vororte) fokusieren.
+bb <- getbb("Konstanz")
+bb[1,1] <- 9.12
+bb[1,2] <- 9.23
+bb[2,2] <- 47.72
+karte2 <- get_map(bb, maptype="terrain") 
+```
+
+```{r, fig.width=8, fig.height=8}
+df <- merge(rad.stationen, konrad_und_tink, by='Nummer')
+ggmap(karte2) +
+  geom_point(data=gebäude, aes(WGS84_X, WGS84_Y, color=Wohnungen), inherit.aes=FALSE, alpha=.15, size=3, na.rm=T) +
+  scale_color_brewer(palette="YlOrRd") +
+  geom_point(data=df, aes(Longitude, Latitude, fill=Bilanz, size=Vorgänge), inherit.aes=FALSE, alpha=1, shape=21) +
+  scale_size(range = c(2, 15)) +
+  scale_fill_gradient2(midpoint=0, low="red", mid="white", high="green", space ="Lab" ) +
+  labs(title='Bilanz der Radstationen') +
+  theme_void() +
+  theme(legend.position='bottom', legend.box = "vertical")
+```
+
+## Rechtliches
+
+[Impressum](https://r42sys.github.io/impressum.html) [Datenschutzerklärung](https://r42sys.github.io/datenschutzerklaerung.html)
